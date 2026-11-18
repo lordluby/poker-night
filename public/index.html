@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Poker Night</title>
+<style>
+  :root { --felt:#0f5132; --felt2:#0a3d26; --gold:#e8c66a; --ink:#f4f1e8; --bg:#121512; --red:#d4423a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(circle at 50% 0, #1f2a22, var(--bg) 70%); color:var(--ink);
+         font-family: Georgia, 'Times New Roman', serif; min-height:100vh; }
+  button { font-family:inherit; cursor:pointer; }
+  .hidden { display:none !important; }
+
+  /* Lobby */
+  #lobby { max-width:380px; margin:12vh auto; padding:32px; text-align:center; }
+  #lobby h1 { font-size:44px; margin:0 0 4px; color:var(--gold); letter-spacing:2px; }
+  #lobby p { opacity:.7; margin:0 0 28px; font-style:italic; }
+  #lobby input { width:100%; padding:14px; margin:6px 0; font-size:17px; border-radius:10px; border:1px solid #3a463c;
+                 background:#1b221d; color:var(--ink); font-family:inherit; }
+  .btn { padding:13px 18px; font-size:16px; border-radius:10px; border:none; background:var(--gold); color:#1d1a10; font-weight:bold; }
+  .btn.ghost { background:transparent; color:var(--ink); border:1px solid #4b5a4f; }
+  #lobby .btn { width:100%; margin-top:10px; }
+  #err { color:#ff8c80; min-height:20px; margin-top:10px; }
+
+  /* Table */
+  #game { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; font-size:14px; }
+  header .code { color:var(--gold); font-weight:bold; letter-spacing:2px; }
+  header button { background:#243027; color:var(--ink); border:1px solid #3a463c; padding:7px 12px; border-radius:8px; }
+  #tableWrap { flex:1; position:relative; min-height:320px; }
+  #table { position:absolute; inset:9% 7%; border-radius:50%/50%;
+           background:radial-gradient(ellipse at center, var(--felt) 0%, var(--felt2) 100%);
+           border:12px solid #4a2e1b; box-shadow: inset 0 0 40px #0008, 0 10px 40px #000a; }
+  #center { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; width:80%; }
+  #board { display:flex; gap:6px; justify-content:center; min-height:66px; }
+  #pot { margin-top:8px; font-size:15px; color:var(--gold); }
+  #result { margin-top:6px; font-size:14px; min-height:18px; }
+
+  .card { width:44px; height:62px; border-radius:6px; background:#fbfaf5; color:#1a1a1a; display:inline-flex;
+          flex-direction:column; align-items:center; justify-content:center; font-weight:bold; font-size:18px;
+          box-shadow:0 2px 5px #0007; line-height:1; font-family: system-ui, sans-serif; }
+  .card .s { font-size:20px; }
+  .card.red { color:var(--red); }
+  .card.back { background:repeating-linear-gradient(45deg,#7a1f1f,#7a1f1f 4px,#972a2a 4px,#972a2a 8px); border:2px solid #fbfaf5; }
+  .card.sm { width:32px; height:46px; font-size:14px; }
+  .card.sm .s { font-size:15px; }
+
+  .seat { position:absolute; transform:translate(-50%,-50%); text-align:center; width:120px; }
+  .seat .box { background:#151a16ee; border:2px solid #3a463c; border-radius:12px; padding:5px 6px; font-size:13px; }
+  .seat.turn .box { border-color:var(--gold); box-shadow:0 0 14px var(--gold); }
+  .seat.me .box { background:#1d2a20ee; }
+  .seat.folded { opacity:.45; }
+  .seat.off { opacity:.3; }
+  .seat .name { font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seat .chips { color:var(--gold); }
+  .seat .act { font-size:11px; opacity:.85; min-height:13px; }
+  .seat .hole { display:flex; gap:3px; justify-content:center; margin-bottom:3px; min-height:46px; }
+  .seat .bet { position:absolute; left:50%; transform:translateX(-50%); bottom:-22px; font-size:12px; background:#000a;
+               border-radius:10px; padding:1px 8px; color:var(--gold); white-space:nowrap; }
+  .dealerBtn { position:absolute; top:-8px; right:-4px; width:22px; height:22px; border-radius:50%; background:#fff; color:#000;
+               font:bold 12px system-ui; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px #000; }
+  .timer { height:3px; background:var(--gold); border-radius:2px; margin-top:3px; transition:width .25s linear; }
+
+  /* Controls */
+  #controls { padding:10px 12px 14px; background:#0d100e; border-top:1px solid #263028; }
+  #myHand { text-align:center; font-size:14px; min-height:18px; margin-bottom:6px; color:var(--gold); }
+  #actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  #actions .btn { min-width:90px; }
+  .btn.fold { background:#5b2420; color:#fff; }
+  .btn.call { background:#2f5d3c; color:#fff; }
+  #raiseRow { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:8px; flex-wrap:wrap; }
+  #raiseRow input[type=range] { flex:1; min-width:140px; max-width:320px; accent-color:var(--gold); }
+  #raiseRow input[type=number] { width:80px; padding:8px; border-radius:8px; border:1px solid #3a463c; background:#1b221d; color:var(--ink); }
+  .chip { padding:7px 10px; border-radius:8px; border:1px solid #3a463c; background:#1b221d; color:var(--ink); font-size:13px; }
+  #status { text-align:center; opacity:.8; font-style:italic; padding:6px; }
+  #log { position:absolute; left:8px; bottom:8px; width:220px; max-height:120px; overflow:auto; font-size:11px;
+         opacity:.65; font-family:system-ui, sans-serif; pointer-events:none; }
+  #arena { position:absolute; inset:0; transition:right .2s; }
+  @media (min-width:900px) {
+    #tableWrap.chatOpen #arena { right:290px; }
+    #tableWrap.chatOpen #chat { top:10px; bottom:10px; height:auto; }
+    #tableWrap.chatOpen #chatToggle { right:300px; }
+  }
+  /* Chat */
+  #chatToggle { position:absolute; right:10px; bottom:10px; z-index:6; width:46px; height:46px; border-radius:50%;
+                border:1px solid #3a463c; background:#1b221d; color:var(--ink); font-size:20px; }
+  #chatBadge { position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; border-radius:10px;
+               font:bold 11px system-ui; padding:2px 6px; }
+  #chat { position:absolute; right:10px; bottom:64px; z-index:6; width:270px; height:min(340px, 70%);
+          background:#0f1410f2; border:1px solid #3a463c; border-radius:12px; display:flex; flex-direction:column;
+          box-shadow:0 8px 30px #000a; font-family:system-ui, sans-serif; }
+  #chatMsgs { flex:1; overflow-y:auto; padding:10px; font-size:13px; line-height:1.35; }
+  #chatMsgs .m { margin-bottom:6px; word-wrap:break-word; }
+  #chatMsgs .m b { color:var(--gold); }
+  #chatMsgs .m.mine b { color:#8fd19e; }
+  #chatMsgs .empty { opacity:.5; font-style:italic; text-align:center; margin-top:20px; }
+  #chatForm { display:flex; gap:6px; padding:8px; border-top:1px solid #263028; }
+  #chatInput { flex:1; min-width:0; padding:9px; border-radius:8px; border:1px solid #3a463c; background:#1b221d; color:var(--ink); font-size:14px; }
+  #chatForm button { padding:0 12px; border-radius:8px; border:none; background:var(--gold); color:#1d1a10; font-weight:bold; }
+  .bubble { position:absolute; left:50%; bottom:100%; transform:translateX(-50%); margin-bottom:4px; background:#fbfaf5; color:#1a1a1a;
+            font:12px system-ui; padding:4px 8px; border-radius:10px; max-width:150px; white-space:nowrap; overflow:hidden;
+            text-overflow:ellipsis; box-shadow:0 2px 6px #0008; z-index:5; pointer-events:none; }
+  @media (max-width:640px) {
+    #chat { left:10px; right:10px; width:auto; height:60%; }
+    #table { inset:12% 4%; border-width:8px; }
+    .seat { width:92px; }
+    .seat .box { font-size:11px; padding:3px; }
+    .card { width:36px; height:52px; font-size:15px; }
+    .card .s { font-size:16px; }
+    .card.sm { width:26px; height:38px; font-size:12px; }
+    .card.sm .s { font-size:12px; }
+    .seat .hole { min-height:38px; }
+    #log { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>♠ Poker Night</h1>
+  <p>No-Limit Texas Hold'em with friends</p>
+  <input id="name" placeholder="Your name" maxlength="16" autocomplete="nickname">
+  <input id="code" placeholder="Table code (empty = new table)" maxlength="6" style="text-transform:uppercase">
+  <button class="btn" id="joinBtn">Sit down</button>
+  <div id="err"></div>
+</div>
+
+<div id="game" class="hidden">
+  <header>
+    <div>Table <span class="code" id="tcode"></span></div>
+    <div><button id="copyBtn">Copy invite link</button></div>
+  </header>
+  <div id="tableWrap">
+    <div id="arena">
+    <div id="table"></div>
+    <div id="center">
+      <div id="board"></div>
+      <div id="pot"></div>
+      <div id="result"></div>
+    </div>
+    <div id="seats"></div>
+    </div>
+    <div id="log"></div>
+    <button id="chatToggle" title="Chat">💬<span id="chatBadge" class="hidden"></span></button>
+    <div id="chat" class="hidden">
+      <div id="chatMsgs"><div class="empty">No messages yet. Say hi!</div></div>
+      <form id="chatForm" autocomplete="off">
+        <input id="chatInput" maxlength="200" placeholder="Message…">
+        <button>Send</button>
+      </form>
+    </div>
+  </div>
+  <div id="controls">
+    <div id="myHand"></div>
+    <div id="status"></div>
+    <div id="actions" class="hidden">
+      <button class="btn fold" data-a="fold">Fold</button>
+      <button class="btn call" id="callBtn" data-a="call">Call</button>
+      <button class="btn" id="raiseBtn" data-a="raise">Raise</button>
+    </div>
+    <div id="raiseRow" class="hidden">
+      <button class="chip" data-q="half">½ Pot</button>
+      <button class="chip" data-q="pot">Pot</button>
+      <input type="range" id="raiseRange">
+      <input type="number" id="raiseNum">
+      <button class="chip" data-q="all">All-in</button>
+    </div>
+    <div id="extra" style="text-align:center;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+let ws, S = null, myCode = null, tickTimer;
+
+$('name').value = localStorage.getItem('poker_name') || '';
+if (params.get('room')) $('code').value = params.get('room').toUpperCase();
+
+function connect(code, name) {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => ws.send(JSON.stringify({ type:'join', code, name, token: localStorage.getItem('poker_tok_' + code) }));
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'error') { $('err').textContent = m.msg; return; }
+    if (m.type === 'joined') {
+      myCode = m.code;
+      localStorage.setItem('poker_tok_' + m.code, m.token);
+      history.replaceState(null, '', '?room=' + m.code);
+      $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+      $('tcode').textContent = m.code;
+    }
+    if (m.type === 'state') { S = m; S.skew = Date.now() - m.now; render(); }
+    if (m.type === 'chatHistory') { chatMsgs = m.msgs; renderChat(); }
+    if (m.type === 'chat') { onChat(m); }
+  };
+  ws.onclose = () => {
+    if (!myCode) { $('err').textContent = 'Connection failed.'; return; }
+    $('status').textContent = 'Reconnecting…';
+    setTimeout(() => connect(myCode, localStorage.getItem('poker_name')), 1500);
+  };
+}
+
+$('joinBtn').onclick = () => {
+  const name = $('name').value.trim();
+  if (!name) { $('err').textContent = 'Please enter a name.'; return; }
+  localStorage.setItem('poker_name', name);
+  connect($('code').value.trim().toUpperCase(), name);
+};
+$('name').onkeydown = $('code').onkeydown = e => { if (e.key === 'Enter') $('joinBtn').click(); };
+
+$('copyBtn').onclick = () => {
+  const url = location.origin + location.pathname + '?room=' + myCode;
+  if (navigator.share) navigator.share({ title:'Poker Night', text:'Join my poker table!', url }).catch(()=>{});
+  else navigator.clipboard.writeText(url).then(() => { $('copyBtn').textContent = 'Copied!'; setTimeout(() => $('copyBtn').textContent = 'Copy invite link', 1500); });
+};
+
+const SUIT = { s:'♠', h:'♥', d:'♦', c:'♣' };
+function cardHtml(c, sm) {
+  if (c === '??') return `<div class="card back ${sm?'sm':''}"></div>`;
+  const r = c[0] === 'T' ? '10' : c[0], s = c[1];
+  return `<div class="card ${sm?'sm':''} ${s==='h'||s==='d'?'red':''}"><span>${r}</span><span class="s">${SUIT[s]}</span></div>`;
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render() {
+  const me = S.players.find(p => p.id === S.you);
+  const myIdx = S.players.indexOf(me);
+  const n = S.players.length;
+
+  // seats: rotate so I'm at the bottom
+  $('seats').innerHTML = S.players.map((p, i) => {
+    const k = (i - myIdx + n) % n;
+    const ang = Math.PI / 2 + (k / n) * Math.PI * 2;
+    const narrow = innerWidth < 640;
+    const x = 50 + Math.cos(ang) * (narrow ? 34 : 42), y = 50 + Math.sin(ang) * (narrow ? 38 : 40);
+    const cls = ['seat', p.id === S.toAct ? 'turn' : '', p.id === S.you ? 'me' : '', p.inHand && p.folded ? 'folded' : '', !p.connected ? 'off' : ''].join(' ');
+    const betPos = y > 50 ? 'top:-22px;bottom:auto' : '';
+    return `<div class="${cls}" data-id="${p.id}" style="left:${x}%;top:${y}%">${bubbles[p.id] ? `<div class="bubble">${esc(bubbles[p.id].text)}</div>` : ''}
+      <div class="hole">${p.hole.map(c => cardHtml(c, true)).join('')}</div>
+      <div class="box" style="position:relative">
+        ${p.id === S.dealer ? '<div class="dealerBtn">D</div>' : ''}
+        <div class="name">${esc(p.name)}${p.id === S.host ? ' ★' : ''}</div>
+        <div class="chips">${p.chips}</div>
+        <div class="act">${!p.connected ? 'offline' : esc(p.lastAction || (p.hand && S.stage==='showdown' && !p.folded ? p.hand : ''))}</div>
+        ${p.id === S.toAct ? '<div class="timer" data-timer></div>' : ''}
+      </div>
+      ${p.bet ? `<div class="bet" style="${betPos}">${p.bet}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('board').innerHTML = S.community.map(c => cardHtml(c)).join('');
+  $('pot').textContent = S.pot ? `Pot: ${S.pot}` : '';
+  $('result').innerHTML = S.result ? S.result.map(r => `🏆 ${esc(r.names.join(' & '))} win${r.names.length>1?'':'s'} ${r.amount}${r.hand ? ' – ' + r.hand : ''}`).join('<br>') : '';
+  $('log').innerHTML = S.log.map(esc).join('<br>');
+  $('log').scrollTop = 1e6;
+  $('myHand').textContent = me.hand && !me.folded ? me.hand : '';
+
+  // controls
+  const myTurn = S.toAct === S.you;
+  const toCall = S.currentBet - me.bet;
+  $('actions').classList.toggle('hidden', !myTurn);
+  $('raiseRow').classList.toggle('hidden', !myTurn || me.chips <= toCall);
+  let status = '', extra = '';
+  if (S.stage === 'waiting') {
+    const ready = S.players.filter(p => p.connected && p.chips > 0).length;
+    status = ready < 2 ? 'Waiting for players… share the invite link!' : (S.host === S.you ? '' : 'Waiting for the host to start…');
+    if (S.host === S.you && ready >= 2) extra = `<button class="btn" onclick="send({type:'start'})">Deal first hand</button>`;
+  } else if (S.stage === 'showdown') status = 'Next hand starting…';
+  else if (!myTurn) {
+    const t = S.players.find(p => p.id === S.toAct);
+    status = !me.inHand ? 'You will be dealt in next hand.' : t ? `Waiting for ${esc(t.name)}…` : '';
+  }
+  if (me.chips === 0 && !(me.inHand && !me.folded && S.stage !== 'showdown' && S.stage !== 'waiting'))
+    extra += ` <button class="btn ghost" onclick="send({type:'rebuy'})">Rebuy</button>`;
+  $('status').textContent = status;
+  $('extra').innerHTML = extra;
+
+  if (myTurn) {
+    $('callBtn').textContent = toCall > 0 ? `Call ${Math.min(toCall, me.chips)}` : 'Check';
+    $('callBtn').dataset.a = toCall > 0 ? 'call' : 'check';
+    const maxTo = me.bet + me.chips;
+    const minTo = Math.min(S.currentBet + S.minRaise, maxTo);
+    const r = $('raiseRange'), num = $('raiseNum');
+    r.min = num.min = minTo; r.max = num.max = maxTo; r.step = 1;
+    if (!(+num.value >= minTo && +num.value <= maxTo) || S._lastTurn !== S.handNo + S.stage + S.currentBet) {
+      num.value = r.value = minTo;
+    }
+    S._lastTurn = S.handNo + S.stage + S.currentBet;
+    updateRaiseLabel();
+    $('raiseBtn').classList.toggle('hidden', me.chips <= toCall);
+  }
+  clearInterval(tickTimer);
+  tickTimer = setInterval(tick, 250); tick();
+}
+function updateRaiseLabel() {
+  const me = S.players.find(p => p.id === S.you);
+  const v = +$('raiseNum').value;
+  $('raiseBtn').textContent = v >= me.bet + me.chips ? `All-in ${v}` : (S.currentBet === 0 ? `Bet ${v}` : `Raise to ${v}`);
+}
+function tick() {
+  const el = document.querySelector('[data-timer]');
+  if (!el || !S.deadline) return;
+  const left = S.deadline - (Date.now() - S.skew);
+  el.style.width = Math.max(0, Math.min(100, left / 450)) + '%';
+}
+function send(m) { ws && ws.readyState === 1 && ws.send(JSON.stringify(m)); }
+
+$('raiseRange').oninput = () => { $('raiseNum').value = $('raiseRange').value; updateRaiseLabel(); };
+$('raiseNum').oninput = () => { $('raiseRange').value = $('raiseNum').value; updateRaiseLabel(); };
+document.querySelectorAll('#raiseRow .chip').forEach(b => b.onclick = () => {
+  const me = S.players.find(p => p.id === S.you);
+  const toCall = S.currentBet - me.bet;
+  const maxTo = me.bet + me.chips, minTo = Math.min(S.currentBet + S.minRaise, maxTo);
+  let v = { half: S.currentBet + Math.floor((S.pot + toCall) / 2),
+            pot: S.currentBet + (S.pot + toCall), all: maxTo }[b.dataset.q];
+  v = Math.max(minTo, Math.min(maxTo, v));
+  $('raiseNum').value = $('raiseRange').value = v; updateRaiseLabel();
+});
+document.querySelectorAll('#actions .btn').forEach(b => b.onclick = () => {
+  const a = b.dataset.a;
+  send({ type:'act', action:a, amount: a === 'raise' ? +$('raiseNum').value : undefined });
+});
+window.addEventListener('resize', () => S && render());
+
+// ---------- Chat ----------
+let chatMsgs = [], unread = 0, bubbles = {};
+const chatOpen = () => !$('chat').classList.contains('hidden');
+function renderChat() {
+  const box = $('chatMsgs');
+  box.innerHTML = chatMsgs.length ? chatMsgs.map(m => {
+    const time = new Date(m.t).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    return `<div class="m ${S && m.id === S.you ? 'mine' : ''}"><b>${esc(m.name)}</b> <span style="opacity:.4;font-size:11px">${time}</span><br>${esc(m.text)}</div>`;
+  }).join('') : '<div class="empty">No messages yet. Say hi!</div>';
+  box.scrollTop = 1e6;
+  $('chatBadge').textContent = unread;
+  $('chatBadge').classList.toggle('hidden', !unread);
+}
+function onChat(m) {
+  chatMsgs.push(m); if (chatMsgs.length > 50) chatMsgs.shift();
+  if (!chatOpen() && (!S || m.id !== S.you)) unread++;
+  bubbles[m.id] = m;
+  setTimeout(() => { if (bubbles[m.id] === m) { delete bubbles[m.id]; S && render(); } }, 5000);
+  renderChat(); S && render();
+}
+$('chatToggle').onclick = () => {
+  $('chat').classList.toggle('hidden');
+  $('tableWrap').classList.toggle('chatOpen', chatOpen());
+  if (chatOpen()) { unread = 0; renderChat(); if (innerWidth >= 640) $('chatInput').focus(); }
+};
+$('chatForm').onsubmit = e => {
+  e.preventDefault();
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  send({ type:'chat', text });
+  $('chatInput').value = '';
+};
+if (innerWidth >= 900) { $('chat').classList.remove('hidden'); $('tableWrap').classList.add('chatOpen'); }
+</script>
+</body>
+</html>
